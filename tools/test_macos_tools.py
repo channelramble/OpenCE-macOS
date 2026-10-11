@@ -174,9 +174,11 @@ GL_APICALL void GL_APIENTRY glDrawElements (GLenum mode, GLsizei count, GLenum t
 GL_APICALL void GL_APIENTRY glTexImage2D (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels);
 GL_APICALL void GL_APIENTRY glVertexAttrib4fv (GLuint index, const GLfloat *v);
 GL_APICALL void GL_APIENTRY glBufferSubData (GLenum target, GLintptr offset, GLsizeiptr size, const void *data);
+GL_APICALL void GL_APIENTRY glBlitFramebuffer (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
 """
 GL_LIST = """/* ANDROID_GL_FUNCTIONS_BEGIN */
 X(glVertexAttribPointer) X(glDrawElements) X(glTexImage2D) X(glVertexAttrib4fv) X(glBufferSubData)
+X(glBlitFramebuffer)
 /* ANDROID_GL_FUNCTIONS_END */
 """
 
@@ -202,12 +204,19 @@ def test_gl_wrappers_window(tmp_path):
     assert "guest_window_pointer(a8)" in text
     assert "hostgl_glVertexAttrib4fv(a0, guest_window_pointer(a1));" in text
     assert "hostgl_glBufferSubData(a0, (long long)a1, (long long)a2, guest_window_pointer(a3));" in text
+    # (the arguments on the stack packed by size, as Apple's arm64 reads them:
+    # in 8-byte slots, the filter would be read from the mask's padding)
+    assert ("void hostgl_glBlitFramebuffer(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, "
+            "GLenum);") in text
+    assert "hostgl_glBlitFramebuffer(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9);" in text
 
 
 def test_gl_wrappers_android_unchanged(tmp_path):
     text = gl_wrappers(tmp_path)
     assert "guest_window" not in text
     assert "hostgl_glTexImage2D(a0, a1, a2, a3, a4, a5, a6, a7, (unsigned long long)(unsigned int)a8);" in text
+    # (Android's host reads the arguments on the stack from 8-byte slots)
+    assert "hostgl_glBlitFramebuffer(a0, a1, a2, a3, a4, a5, a6, a7, (long long)a8, (long long)a9);" in text
 
 
 def test_posix_wrappers_window(tmp_path):

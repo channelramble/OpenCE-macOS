@@ -20,7 +20,10 @@ With --window (the macOS guest, port/macos/README.md), the guest's addresses
 are not the host's: every pointer argument is widened to the host address of
 the guest memory it points at (port/macos/guest/guest_window.h), but for the
 vertex and index data's, which the renderer always gives as offsets into
-the bound buffers (WebGL 2 has no other kind), and pass as they are.
+the bound buffers (WebGL 2 has no other kind), and pass as they are. The
+host there is Apple's arm64, which packs the arguments on the stack by size
+as the guest does, so those keep their types (padded to 8-byte slots, a
+glBlitFramebuffer's filter would be read from the mask's padding).
 
 Usage: android_gl_stubs.py [--window] gl.h gl32.h gl2ext.h output.c imports.list
 """
@@ -178,7 +181,7 @@ def main():
                 else:
                     host_params.append(ptype)
                     call_args.append(arg)
-            elif wide or on_stack:
+            elif wide or (on_stack and not window):
                 host_params.append("long long")
                 call_args.append(f"(long long){arg}")
             else:
