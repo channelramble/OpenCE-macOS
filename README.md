@@ -1,4 +1,116 @@
-# Halo: Combat Evolved for Linux, Windows, macOS, Android and the web
+# Halo: Combat Evolved for Mac
+
+Halo: Combat Evolved, running natively on Macs with Apple silicon. This is
+[OpenCE](https://github.com/OpenCommunityEdition/OpenCE), the port of the
+Halo: Combat Evolved decompilation to modern systems, with a port to macOS:
+one app, the whole campaign, split screen, system link and internet play
+with the Linux, Windows, Android and web builds, a widescreen high-resolution
+picture on Metal, and keyboard, mouse and controller support.
+
+![Blood Gulch on a Mac](docs/macos/bloodgulch.jpg)
+
+## Download
+
+**[Download Halo.dmg](https://github.com/channelramble/OpenCE-macOS/releases/latest/download/Halo.dmg)**
+(about 19 MB) from the [latest release](https://github.com/channelramble/OpenCE-macOS/releases/latest).
+
+You need:
+
+- a Mac with Apple silicon (M1 or later). Intel Macs cannot run it.
+- macOS 11 Big Sur or later (tested on macOS 27).
+- your own disc image (`.iso` or `.xiso`) of Halo: Combat Evolved for the
+  original Xbox, any version. The game data is not included: it is
+  Microsoft's.
+
+## Install
+
+1. Open **Halo.dmg** and drag **Halo** into **Applications**.
+2. Open **Halo** from Applications. The app is not notarized by Apple, so the
+   first time macOS says that it cannot check it: click **Done**, open
+   **System Settings > Privacy & Security**, scroll down to "Halo was
+   blocked" and click **Open Anyway**, then confirm. (You do this once.)
+3. The first time the game starts, it asks for your disc image: click
+   **Yes** and select it. It copies the game's maps (about 2 GB), then the
+   game starts. You can delete the disc image afterwards.
+
+That is all: the next starts go straight to the game.
+
+## Your files
+
+Halo keeps its files in `~/Library/Application Support/OpenCE` (in the
+Finder: **Go > Go to Folder**, then paste that path):
+
+| What | Where in that folder |
+| --- | --- |
+| The game's maps | `maps` |
+| Saved games and profiles | `save` |
+| Settings (every setting, with its explanation) | `config.toml` |
+| Screenshots (**F10**) | `screenshots` |
+| Custom Edition maps | `custom_maps` |
+| Logs | `debug.txt`, `halo.log` |
+
+To start again from nothing, quit Halo and delete that folder. To remove the
+game, also drag Halo from Applications to the Trash.
+
+## Playing
+
+- Keyboard and mouse as on Halo PC: **W A S D** to move, the mouse to aim,
+  **left click** to fire, **right click** or **G** for grenades, **space** to
+  jump, **control** or **C** to crouch, **F** to melee, **R** to reload,
+  **E** for actions, **Q** for the flashlight, **Z** to zoom, **tab** for the
+  scores, **escape** for the pause menu. Settings > Controls Setup changes
+  them.
+- Controllers (Xbox, PlayStation, Switch Pro and others that macOS knows)
+  work at once; more controllers are players 2 to 4 in split screen.
+- **fn+F11** changes between fullscreen and a window, **fn+F12** releases or
+  captures the mouse, **⌘Q** quits. (If fn+F11 shows the desktop instead,
+  turn off "Show Desktop" in System Settings > Keyboard > Keyboard
+  Shortcuts > Mission Control.)
+- Multiplayer: system link on your local network, and internet play with an
+  invite link, with players on every OpenCE platform. macOS may ask for
+  permission to use the local network (the first network game) and the
+  microphone (voice chat): allow them.
+
+The controls, the menus, every setting and the multiplayer functions are
+described in [port/linux/README.md](port/linux/README.md) (the Mac uses the
+same game code as Linux), and what is particular to the Mac in
+[port/macos/README.md](port/macos/README.md).
+
+## Build it yourself
+
+On a Mac with Apple silicon, with the Xcode command line tools and
+[Homebrew](https://brew.sh):
+
+```sh
+brew install llvm lld ninja cmake
+git clone https://github.com/channelramble/OpenCE-macOS.git
+cd OpenCE-macOS
+python3 configure.py --release
+ninja macos_dmg
+```
+
+The app is `build/macos/Halo.app`, and its disk image `build/macos/Halo.dmg`.
+[port/macos/README.md](port/macos/README.md) explains how the port works
+(the game is 32-bit code, which Apple silicon Macs cannot run as it is: it
+runs in a 4 GB window of its own, which a rewrite of its compiled code
+addresses), and how to sign and notarize the app with a Developer ID.
+
+## Credits and legal
+
+- The game's code is the decompilation of the original Xbox game by the
+  [punpckhdq/halo](https://github.com/punpckhdq/halo) and
+  [bnunu/halo-1](https://github.com/bnunu/halo-1) projects.
+- [OpenCE](https://github.com/OpenCommunityEdition/OpenCE) ports it to Linux,
+  Windows, Android and the web; this repository adds macOS. Their code is
+  CC0 ([LICENSE.md](LICENSE.md)); the libraries in the app are under their
+  own licences (`Halo.app/Contents/Resources/Licenses.txt`).
+- Halo is a trademark of Microsoft. This is a fan project, not affiliated
+  with or endorsed by Microsoft, Bungie or Xbox. It contains no game data:
+  you need your own copy of the game.
+
+---
+
+# About OpenCE: Halo: Combat Evolved for Linux, Windows, macOS, Android and the web
 
 [![Join our Discord](https://invidget.switchblade.xyz/9gqcHyr5km)](https://discord.gg/9gqcHyr5km)
 
@@ -22,7 +134,7 @@ builds of the latest release:
 | Linux | [halo-linux-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-release.zip) | [halo-linux-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-debug.zip) |
 | Windows | [halo-windows-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-windows-release.zip) | [halo-windows-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-windows-debug.zip) |
 | Android | [halo-android-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-android-release.zip) | [halo-android-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-android-debug.zip) |
-| macOS (Apple silicon) | [halo-macos-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-macos-release.zip) | [halo-macos-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-macos-debug.zip) |
+| macOS (Apple silicon) | [Halo.dmg](https://github.com/channelramble/OpenCE-macOS/releases/latest/download/Halo.dmg) (this repository's releases) | build it: [port/macos/README.md](port/macos/README.md) |
 | Web | [halocombatevolved.com](https://halocombatevolved.com/) (or [halo-web-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-web-release.zip) for your own server) | [halo-web-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-web-debug.zip) |
 
 The macOS download holds `Halo.dmg`: open it and drag Halo to Applications.

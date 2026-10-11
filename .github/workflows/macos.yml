@@ -1,0 +1,164 @@
+name: macOS
+
+# Builds the Mac app's disk image, Halo.dmg (port/macos/README.md), on an
+# Apple silicon runner for each push and pull request, and starts the debug
+# build without game data or a window (the null renderer) until it quits. A
+# tag v<version> also builds the release one and publishes it as that
+# version's GitHub release (one already there, made by hand, is left alone).
+#
+# Signed for no one in particular (ad hoc), a downloaded app needs System
+# Settings > Privacy & Security > Open Anyway the first time. With these
+# secrets the release is signed with a Developer ID and notarized, and opens
+# at once (each is optional; without them the release is signed ad hoc):
+# - DEVELOPER_ID_P12: a Developer ID Application certificate with its private
+#   key (a .p12, base64); DEVELOPER_ID_P12_PASSWORD: the .p12's password;
+#   DEVELOPER_ID_IDENTITY: the certificate's name, as
+#   "Developer ID Application: <name> (<team>)";
+# - NOTARY_KEY: an App Store Connect API key (the .p8 file's text),
+#   NOTARY_KEY_ID: its key ID, NOTARY_ISSUER: its issuer ID.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore:
+      - "**.md"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI_COMPILER_LAUNCHER: ccache
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_BASEDIR: ${{ github.workspace }}
+  CCACHE_MAXSIZE: 1G
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Install the toolchain
+        run: brew install llvm lld ninja ccache
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-macos-${{ github.sha }}
+          restore-keys: ccache-macos-
+
+      # musl, SDL and ANGLE, which configure.py fetches
+      - uses: actions/cache@v4
+        with:
+          path: build/macos/third_party
+          key: macos-third-party-${{ hashFiles('tools/macos_build.py', 'tools/android_build.py') }}
+
+      - name: Debug
+        run: python3 tools/ci_build.py macos debug
+
+      - name: Test
+        run: |
+          mkdir -p "$RUNNER_TEMP/halo-data"
+          HALO_DATA_ROOT="$RUNNER_TEMP/halo-data" HALO_NULL_RENDERER=1 HALO_HIDDEN_WINDOW=1 HALO_EXIT_AFTER=5 \
+            HALO_NET_ONLINE=0 perl -e 'alarm shift; exec @ARGV' 120 build/macos/Halo.app/Contents/MacOS/Halo
+          cat "$RUNNER_TEMP/halo-data/halo.log"
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -q pytest
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -q tools/test_macos_tools.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halo-macos-debug
+          path: dist/halo-macos-debug
+          retention-days: 7
+
+      # (a Developer ID's certificate, in a keychain of the run's own)
+      - name: Signing certificate
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          DEVELOPER_ID_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+        run: |
+          if [ -z "$DEVELOPER_ID_P12" ] || [ -z "$DEVELOPER_ID_IDENTITY" ]; then
+            echo "no Developer ID secrets: the release is signed ad hoc"
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "" "$keychain"
+          security set-keychain-settings "$keychain"
+          security unlock-keychain -p "" "$keychain"
+          printf '%s' "$DEVELOPER_ID_P12" | base64 -d > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/developer-id.p12"
+          echo "HALO_MACOS_SIGN=$DEVELOPER_ID_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ -n "$HALO_MACOS_SIGN" ]; then
+            python3 configure.py --release --compiler-launcher ccache --macos-sign "$HALO_MACOS_SIGN"
+          else
+            python3 configure.py --release --compiler-launcher ccache
+          fi
+          ninja macos_dmg
+
+      - name: Notarize
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          if [ -z "$HALO_MACOS_SIGN" ] || [ -z "$NOTARY_KEY" ]; then
+            echo "not signed with a Developer ID, or no notary key: the release is not notarized"
+            exit 0
+          fi
+          printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          python3 tools/macos_app.py notarize --dmg build/macos/Halo.dmg --key "$RUNNER_TEMP/notary.p8" \
+            --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER"
+          rm "$RUNNER_TEMP/notary.p8"
+
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: halo-macos-release
+          path: build/macos/Halo.dmg
+          retention-days: 7
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: halo-macos-release
+          path: release
+
+      - name: Publish
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME is there already: left as it is"
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" release/Halo.dmg --verify-tag \
+            --title "Halo for Mac $GITHUB_REF_NAME" --notes-file .github/release-notes.md
