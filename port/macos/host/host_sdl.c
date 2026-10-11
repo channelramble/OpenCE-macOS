@@ -216,7 +216,12 @@ int host_sdl_poll_event(void *event)
 	SDL_Event host_event;
 
 	if (!SDL_PollEvent(&host_event))
+	{
+		/* (the events pumped: questions that came with them answered on,
+		host_cocoa.m) */
+		host_cocoa_accessibility_answer();
 		return 0;
+	}
 	/* the layouts agree except for the pointers of text, drop and user
 	events, which the guest does not read */
 	memcpy(event, &host_event, sizeof(host_event));
@@ -715,6 +720,7 @@ int host_sdl_audio_device_name(uint32_t device, char *buffer, uint32_t size)
 void host_sdl_pump_events(void)
 {
 	SDL_PumpEvents();
+	host_cocoa_accessibility_answer();
 }
 
 /* (an event without pointers, as the guest makes: the layouts agree) */

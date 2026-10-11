@@ -52,6 +52,11 @@ const char *host_data_root(void);
 /* AppKit's restoration of the windows, off, and its question after a crash
 (host_cocoa.m): before SDL starts AppKit */
 void host_cocoa_no_window_restoration(void);
+/* Accessibility's questions to the app (host_cocoa.m): counted from before
+SDL starts AppKit, and answered as they come after a pump of the events
+that answered one (on the main thread; nothing elsewhere) */
+void host_cocoa_accessibility_watch(void);
+void host_cocoa_accessibility_answer(void);
 
 /* ---------- guest memory (host_memory.c)
 

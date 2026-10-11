@@ -187,6 +187,14 @@ The host (`port/macos/host`) is an arm64 executable:
   offsets in buffers and do not change. SDL's objects are small handles in
   the guest (`host_sdl.c`, and the desktop's functions in
   `guest/guest_sdl_desktop.c`).
+- It answers the questions of Accessibility clients as they come
+  (`host_cocoa.m`). AppKit answers them on the main thread when the game
+  pumps its events, once a frame. A window manager that asks a series of
+  them from an event tap holds the event until it has the answers: Magnet
+  asks about twenty on each left click, so the click, and the mouse's
+  motion behind it, came about 140 ms late. After a pump that answers a
+  question, the main thread answers the next ones as they come, for up to
+  4 ms.
 
 The guest sees the data folder as the folder of its executable
 (`/proc/self/exe`), and starts in it, so the desktop code finds `maps/`,
@@ -210,6 +218,10 @@ gives the 512 MB Xbox memory window and the caches of the desktop builds
   `llvm-symbolizer --obj=build/macos/halo_guest.elf <address>`.
 - `HALO_MEMORY_WATCH=0` makes the host compare page contents to find the
   game's writes to textures and vertices, instead of page protection.
+- If the clicks or the aim lag, an app that watches the mouse can hold
+  each click while it works: a window manager (for example Magnet, which
+  snaps windows that you drag), or a mouse utility. Add the game to the
+  app's ignored apps, or quit the app while you play.
 
 ## Limits
 
