@@ -101,6 +101,39 @@ def test_data_sections_left_alone():
     assert "[x28, w1, uxtw]" in out
 
 
+def x30_rewrite(*functions):
+    """the rewritten instructions of functions (name, lines), without tabs"""
+    lines = ["\t.text"]
+    for name, body in functions:
+        lines += [f"{name}:"] + [f"\t{line}" for line in body]
+    out = macos_sfi.Rewriter().run(lines)
+    return [" ".join(line.split()) for line in out.splitlines() if line.strip()]
+
+
+def test_x30_as_a_register_keeps_its_values():
+    # (SHA-512's and the curves' 64-bit arithmetic: the compiler saved the
+    # return address, and x30 holds data until it loads it back)
+    out = x30_rewrite(("multiply", ["stp x29, x30, [sp, #-16]!", "mul x30, x1, x2", "add x8, x30, x9",
+                                    "smaddl x2, w11, w15, x30", "ldp x29, x30, [sp], #16", "ret"]))
+    assert "add x8, x30, x9" in out and "mov w8, w8" not in out
+    assert "mov w2, w2" not in out
+    # (a value spilled and loaded back into x30)
+    out = x30_rewrite(("reload", ["str x30, [sp, #-16]!", "ldr x30, [sp, #24]", "eor x8, x30, x9",
+                                  "ldr x30, [sp], #16", "ret"]))
+    assert "mov w8, w8" not in out
+
+
+def test_x30_return_address_keeps_its_low_bits():
+    # (each function by itself: the second only reads the return address,
+    # restoring it is no other use)
+    out = x30_rewrite(("data_user", ["mov x30, x1", "add x8, x30, x9", "ret"]),
+                      ("caller", ["stp x29, x30, [sp, #-16]!", "mov x0, x30", "bl callee",
+                                  "ldp x29, x30, [sp], #16", "ret"]))
+    caller = out[out.index("caller:"):]
+    assert "mov w8, w8" not in out[:out.index("caller:")]
+    assert caller[caller.index("mov x0, x30") + 1] == "mov w0, w0"
+
+
 def test_far_test_bit_branches_relaxed():
     lines = ["\t.text", "start:", "\ttbz w8, #0, far"] + ["\tadd w0, w0, #1"] * 9000 + ["far:", "\tret"]
     out = macos_sfi.Rewriter().run(lines).splitlines()

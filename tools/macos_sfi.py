@@ -19,12 +19,15 @@ The rules:
   ([x28, wN, uxtw], or x27 = x28 + wN for the forms without a register
   offset). Pre- and post-indexed forms update the base register as before.
 - sp and x29 hold host addresses (the stack is in the window), so accesses
-  based on them are left alone. A value computed from sp, x29 or x30 (a
-  return address, unless the compiler has saved x30 and uses it as one more
-  register), or by adr or adrp, is a host address: it is truncated to its
-  low 32 bits, the guest address (the base is 4 GB-aligned), since the
-  compiler keeps pointers zero-extended in registers. A 32-bit comparison
-  sees only those bits; a 64-bit one with sp or x29 is refused.
+  based on them are left alone. A value computed from sp or x29, or by adr
+  or adrp, is a host address: it is truncated to its low 32 bits, the guest
+  address (the base is 4 GB-aligned), since the compiler keeps pointers
+  zero-extended in registers. So is one computed from x30 in a function that
+  only reads it (the return address); a function that writes x30 otherwise
+  than restoring it (ldp x29, x30 or ldr x30, [sp], #n) uses it as one more
+  register, whose values are data, 64-bit integers among them, and kept
+  whole. A 32-bit comparison sees only those bits; a 64-bit one with sp or
+  x29 is refused.
 - br and blr go to x28 plus the low 32 bits of the target. sp set from a
   general register gets the base added back.
 
@@ -131,9 +134,36 @@ def add_immediate(register: str, value: int):
     return f"\tsub\t{register}, {register}, #{-value}"
 
 
+def destinations(op: str, operands):
+    """the registers an instruction writes: a load's before its memory
+    operand, most others' first operand"""
+    mem_index = next((i for i, o in enumerate(operands) if o.startswith("[")), None)
+    if op.startswith("st") or op.startswith("prf"):
+        return []
+    if mem_index is not None:
+        return operands[:mem_index]
+    if op in NO_DESTINATION or op.startswith("b."):
+        return []
+    return operands[:1]
+
+
+def writes_x30_as_register(op: str, operands) -> bool:
+    """whether the instruction writes x30 otherwise than restoring the
+    return address (ldp x29, x30, [...], or ldr x30, [sp], #n)"""
+    written = destinations(op, operands)
+    if not any(register in ("x30", "w30") for register in written):
+        return False
+    if op == "ldp" and written == ["x29", "x30"]:
+        return False
+    return not (op == "ldr" and written == ["x30"] and len(operands) == 3 and operands[1] == "[sp]")
+
+
 class Rewriter:
     def __init__(self):
         self.out = []
+        # whether the function being rewritten uses x30 as one more register
+        # (its values are data, not the return address)
+        self.x30_data = False
 
     def emit(self, line: str):
         self.out.append(line)
@@ -288,8 +318,10 @@ class Rewriter:
             raise SfiError(f"{op} {args}: the frame pointer set from a general register")
 
         # (x30 written here is one more register: the compiler saved the
-        # return address, and loads it back before it returns)
-        reads_host = any(s.split()[0] in HOST_REGISTERS for s in sources if s)
+        # return address, and loads it back before it returns. Read in a
+        # function that does so, it is data)
+        host_registers = HOST_REGISTERS - {"x30", "w30"} if self.x30_data else HOST_REGISTERS
+        reads_host = any(s.split()[0] in host_registers for s in sources if s)
         if destination is None:
             if op in ("cmp", "cmn", "tst", "ccmp", "ccmn") and \
                     any(s.split()[0] in HOST_ADDRESS_REGISTERS for s in sources if s):
@@ -355,10 +387,49 @@ class Rewriter:
             return words[1].startswith(".text")
         return current
 
+    @staticmethod
+    def functions_using_x30(lines):
+        """for each line, whether the function it is in (from one global
+        label in code to the next) writes x30 as one more register"""
+        flags = [False] * len(lines)
+        in_text = True
+        stack = []
+        start = 0
+        using = False
+        for number, raw in enumerate(lines):
+            line = raw.rstrip()
+            text = line.strip()
+            if not text:
+                continue
+            if text.startswith("."):
+                word = text.split()[0]
+                if word == ".pushsection":
+                    stack.append(in_text)
+                    in_text = Rewriter.section_is_code(text, in_text)
+                elif word == ".popsection":
+                    in_text = stack.pop() if stack else True
+                elif word in (".text", ".data", ".bss", ".rodata", ".section"):
+                    in_text = Rewriter.section_is_code(text, in_text)
+                continue
+            if text.endswith(":") and not line.startswith("\t"):
+                if in_text and not text.startswith(".L"):
+                    flags[start:number] = [using] * (number - start)
+                    start, using = number, False
+                continue
+            if not in_text:
+                continue
+            parts = text.split(None, 1)
+            if writes_x30_as_register(parts[0].lower(), split_operands(parts[1]) if len(parts) > 1 else []):
+                using = True
+        flags[start:] = [using] * (len(lines) - start)
+        return flags
+
     def run(self, lines):
         in_text = True
         stack = []
+        x30_data = self.functions_using_x30(lines)
         for number, raw in enumerate(lines, 1):
+            self.x30_data = x30_data[number - 1]
             line = raw.rstrip()
             text = line.strip()
             try:

@@ -138,9 +138,13 @@ changes the code so that it uses the window (the guest is compiled with
   the guest address. x27 holds the intermediate address when the
   instruction has no form with a register offset.
 - The stack is in the window. sp and x29 hold host addresses, and accesses
-  relative to them do not change. A value made from sp, x29 or x30, or by
-  `adr` or `adrp`, keeps only its low 32 bits, the guest address. The base
-  is a 4 GB boundary, so the two agree.
+  relative to them do not change. A value made from sp or x29, or by `adr`
+  or `adrp`, keeps only its low 32 bits, the guest address. The base is a
+  4 GB boundary, so the two agree. So does a value made from x30, the
+  return address, in a function that only reads x30. A function that writes
+  x30 (other than to restore the return address) uses it as one more
+  register, and its values stay whole: they can be 64-bit integers, which
+  SHA-512 and the curves of internet play's keys and signatures use.
 - `br` and `blr` go to x28 + the low 32 bits of the target. sp that is set
   from a general register gets the base again.
 - Jump tables have 4-byte entries
