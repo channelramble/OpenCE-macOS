@@ -787,22 +787,40 @@ static char *config_default_text(void)
 		"# it to go back to them. Each setting can also be set for one run with\n"
 		"# the environment variable named with it, which wins over this file.\n");
 #endif
+	/* each section once, where its first setting is, with all of its
+	settings: they need not be next to each other in config_settings, and
+	TOML refuses a table defined twice (the whole file would go unread) */
 	for (index = 0; index < NUMBER_OF_CONFIG_SETTINGS; index++)
 	{
 		const struct config_setting *setting = &config_settings[index];
 		const char *dot = strchr(setting->name, '.');
+		size_t length, other;
 		char buffer[64];
 
 		if (!(setting->platforms & CONFIG_PLATFORM) || !dot)
 			continue;
-		if (strncmp(section, setting->name, (size_t)(dot - setting->name)) ||
-			section[dot - setting->name] != 0)
+		length = (size_t)(dot - setting->name) + 1;
+		for (other = 0; other < index; other++)
 		{
-			snprintf(section, sizeof(section), "%.*s", (int)(dot - setting->name), setting->name);
-			snprintf(buffer, sizeof(buffer), "\n[%s]\n", section);
-			config_append(&text, buffer);
+			if ((config_settings[other].platforms & CONFIG_PLATFORM) &&
+				!strncmp(config_settings[other].name, setting->name, length))
+			{
+				break;
+			}
 		}
-		config_append_setting(&text, setting);
+		if (other < index)
+			continue;
+		snprintf(section, sizeof(section), "%.*s", (int)(length - 1), setting->name);
+		snprintf(buffer, sizeof(buffer), "\n[%s]\n", section);
+		config_append(&text, buffer);
+		for (other = index; other < NUMBER_OF_CONFIG_SETTINGS; other++)
+		{
+			if ((config_settings[other].platforms & CONFIG_PLATFORM) &&
+				!strncmp(config_settings[other].name, setting->name, length))
+			{
+				config_append_setting(&text, &config_settings[other]);
+			}
+		}
 	}
 	return text.buffer;
 }
