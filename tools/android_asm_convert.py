@@ -15,7 +15,12 @@ Usage: android_asm_convert.py input.s output.s
 import re
 import sys
 
-IDENT = re.compile(r'"[^"]*"|[A-Za-z_.$][\w.$]*')
+# (a quoted name may hold an escaped quote, as string data may)
+IDENT = re.compile(r'"(?:[^"\\]|\\.)*"|[A-Za-z_.$][\w.$]*')
+# directives whose operands are string data, never symbols: copied as they
+# are (renamed, an underscore that started a word in the text was taken for
+# a symbol's and dropped: Opus's cache_bits50, an .ascii with \", lost a byte)
+STRING_DIRECTIVES = {".ascii", ".asciz", ".string"}
 
 DROP_DIRECTIVES = {
     ".subsections_via_symbols", ".build_version", ".watchos_version_min",
@@ -216,6 +221,9 @@ class Converter:
             return
         if op == ".align":
             self.emit(f"\t.p2align {args}")
+            return
+        if op in STRING_DIRECTIVES:
+            self.emit(f"\t{op} {args}")
             return
         if op.startswith("."):
             self.emit(f"\t{op} {self.operands(args)}" if args else f"\t{op}")

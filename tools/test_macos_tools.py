@@ -101,6 +101,19 @@ def test_data_sections_left_alone():
     assert "[x28, w1, uxtw]" in out
 
 
+def test_string_data_kept():
+    # (Opus's cache_bits50: bytes 51, 95 ("3_") after an escaped quote's 34;
+    # an underscore that starts a word was taken for a symbol's and dropped)
+    from android_asm_convert import Converter
+
+    data = r'"(\007\"$&3_\206\252_tail"'
+    out = Converter(["\t.section\t__TEXT,__const", "_cache_bits50:", f"\t.ascii\t{data}",
+                     '\t.asciz\t"_start \\"_quoted\\" l_local"']).run()
+    assert data in out
+    assert '"_start \\"_quoted\\" l_local"' in out
+    assert "cache_bits50:" in out and "_cache_bits50:" not in out
+
+
 def x30_rewrite(*functions):
     """the rewritten instructions of functions (name, lines), without tabs"""
     lines = ["\t.text"]
