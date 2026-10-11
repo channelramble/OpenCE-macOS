@@ -2,7 +2,8 @@
 UPDATER.C
 
 The desktop ports' self-updater (Linux and Windows; the Android app updates
-itself in Java, port/android).
+itself in Java, port/android; the macOS app, which no release carries yet,
+does not).
 
 A build of the main branch made by GitHub Actions knows its build number
 (HALO_BUILD_NUMBER, the workflow's run number, which names its release:
@@ -29,7 +30,7 @@ update.h's: posix_update.c on Linux, win32_update.c on Windows.
 #include "port_config.h"
 #include "update.h"
 
-#if !defined(HALO_ANDROID) && !defined(HALO_WEB)
+#if !defined(HALO_ANDROID) && !defined(HALO_WEB) && !defined(HALO_MACOS)
 
 #include "zlib_prefixed.h"
 
@@ -655,10 +656,11 @@ void updater_start(void)
 {
 }
 
-#ifdef HALO_WEB
+#if defined(HALO_WEB) || defined(HALO_MACOS)
 #include <SDL3/SDL.h>
 
-/* (the site updates itself: port/web/site/sw.js) */
+/* (the site updates itself: port/web/site/sw.js; the macOS app is built
+from source) */
 void updater_poll(SDL_Window *window)
 {
 	(void)window;

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # root build script: writes build.ninja for the native ports (Linux, Windows,
-# Android) and the web port
+# Android, macOS) and the web port
 
 import argparse
 import io
@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from tools import ninja_syntax
 from tools.android_build import android_configure_inputs, generate_android_build
 from tools.linux_build import check_profile_options, generate_linux_build, linux_configure_inputs
+from tools.macos_build import generate_macos_build, macos_configure_inputs
 from tools.web_build import generate_web_build, web_configure_inputs
 from tools.windows_build import generate_windows_build, windows_configure_inputs
 
@@ -85,6 +86,17 @@ parser.add_argument(
     help="clang with the arm64_32 target for the Android guest (default: clang)",
 )
 parser.add_argument(
+    "--macos-guest-cc",
+    type=str,
+    help="clang with the arm64_32 target for the macOS guest, `ninja macos` (default: Homebrew's llvm, else clang)",
+)
+parser.add_argument(
+    "--macos-angle",
+    type=str,
+    help="an ANGLE build for `ninja macos`: a folder with libEGL.dylib, libGLESv2.dylib and include/ (default: "
+    "the one configure.py downloads)",
+)
+parser.add_argument(
     "--web-emcc",
     type=str,
     help="Emscripten's emcc for `ninja web` (default: emcc on the PATH, then EMSDK's or ~/emsdk's)",
@@ -108,12 +120,18 @@ sln = SimpleNamespace(
     port_pgo_profile=args.pgo_profile,
     android_ndk=args.android_ndk,
     android_guest_cc=args.android_guest_cc,
+    macos_guest_cc=args.macos_guest_cc,
+    macos_angle=args.macos_angle,
     web_emcc=args.web_emcc,
 )
 
 
 def is_windows() -> bool:
     return os.name == "nt"
+
+
+def is_macos() -> bool:
+    return sys.platform == "darwin"
 
 
 # build.ninja
@@ -134,6 +152,7 @@ n.newline()
 generate_linux_build(n, sln)
 generate_android_build(n, sln)
 generate_windows_build(n, sln)
+generate_macos_build(n, sln)
 generate_web_build(n, sln)
 
 n.comment("Reconfigure on change")
@@ -152,6 +171,7 @@ n.build(
         *linux_configure_inputs(),
         *android_configure_inputs(),
         *windows_configure_inputs(),
+        *macos_configure_inputs(),
         *web_configure_inputs(),
     ],
 )
@@ -159,7 +179,7 @@ n.newline()
 
 # the build for this computer, where it could be generated (the Windows
 # build is left out when SDL cannot be fetched, for instance)
-default = "windows" if is_windows() else "linux"
+default = "windows" if is_windows() else "macos" if is_macos() else "linux"
 if f"\nbuild {default}: " in out.getvalue():
     n.comment("Default rule: the build for this computer")
     n.default(default)

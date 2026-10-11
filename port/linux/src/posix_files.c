@@ -16,6 +16,12 @@ the host ABI and _FILE_OFFSET_BITS=64.
 
 #include "posix.h"
 
+#ifdef __APPLE__
+/* (Darwin's names for the times of struct stat) */
+#define st_atim st_atimespec
+#define st_mtim st_mtimespec
+#endif
+
 static void split64(unsigned long long value, posix_ulong *low, posix_ulong *high)
 {
 	*low = (posix_ulong)(value & 0xffffffffULL);
@@ -34,9 +40,15 @@ static void fill_information(const struct stat *st, struct posix_file_informatio
 	information->modification_nanoseconds = (posix_ulong)st->st_mtim.tv_nsec;
 	information->access_seconds = (posix_ulong)st->st_atim.tv_sec;
 	information->access_nanoseconds = (posix_ulong)st->st_atim.tv_nsec;
+#ifdef __APPLE__
+	/* (macOS, the macOS port's host: the creation time itself) */
+	information->creation_seconds = (posix_ulong)st->st_birthtimespec.tv_sec;
+	information->creation_nanoseconds = (posix_ulong)st->st_birthtimespec.tv_nsec;
+#else
 	/* Linux has no portable creation time; the change time is the closest */
 	information->creation_seconds = (posix_ulong)st->st_ctim.tv_sec;
 	information->creation_nanoseconds = (posix_ulong)st->st_ctim.tv_nsec;
+#endif
 }
 
 int posix_stat(const char *path, struct posix_file_information *information)

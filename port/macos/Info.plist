@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The macOS app's (tools/macos_app.py fills in the build number and the oldest macOS) -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Halo</string>
+	<key>CFBundleExecutable</key>
+	<string>Halo</string>
+	<key>CFBundleIconFile</key>
+	<string>Halo</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.halo.decomp</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Halo</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.@BUILD_NUMBER@</string>
+	<key>CFBundleVersion</key>
+	<string>@BUILD_NUMBER@</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.action-games</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>@MINIMUM_MACOS@</string>
+	<key>LSArchitecturePriority</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Halo uses the microphone for voice chat in network games.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Halo finds and plays system link games on your local network.</string>
+</dict>
+</plist>

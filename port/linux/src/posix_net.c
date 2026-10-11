@@ -27,8 +27,65 @@ with the host ABI.
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <crt_externs.h>
+#endif
 
 #include "posix.h"
+
+#ifdef __APPLE__
+/* macOS (the macOS port's host, port/macos) has no SOCK_CLOEXEC,
+SOCK_NONBLOCK, accept4 or MSG_NOSIGNAL: a socket is made close-on-exec (and
+not blocking) once it is made, and asks for no SIGPIPE (SO_NOSIGPIPE)
+instead of each send */
+#define MSG_NOSIGNAL 0
+
+static int socket_settle(int descriptor, int nonblocking)
+{
+	int value = 1;
+
+	if (descriptor < 0)
+		return descriptor;
+	fcntl(descriptor, F_SETFD, FD_CLOEXEC);
+	if (nonblocking)
+		fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK);
+	setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &value, sizeof(value));
+	return descriptor;
+}
+
+static int socket_new(int family, int type, int protocol, int nonblocking)
+{
+	return socket_settle(socket(family, type, protocol), nonblocking);
+}
+
+/* Winsock's sockaddr starts with a 16-bit family, as Linux's does; BSD's
+with a length byte, then an 8-bit family. The game's addresses are
+converted on their way in and out. */
+static const void *address_in(const void *address, int length, struct sockaddr_storage *storage)
+{
+	if (!address || length < 2 || length > (int)sizeof(*storage))
+		return address;
+	memcpy(storage, address, (size_t)length);
+	((unsigned char *)storage)[1] = ((const unsigned char *)address)[0];
+	((unsigned char *)storage)[0] = (unsigned char)length;
+	return storage;
+}
+
+static void address_out(void *address, int length)
+{
+	unsigned char *bytes = address;
+
+	if (!address || length < 2)
+		return;
+	bytes[0] = bytes[1];
+	bytes[1] = 0;
+}
+#else
+static int socket_new(int family, int type, int protocol, int nonblocking)
+{
+	return socket(family, type | SOCK_CLOEXEC | (nonblocking ? SOCK_NONBLOCK : 0), protocol);
+}
+#endif
 
 /* Winsock error codes (winsockx.h) */
 #define WSAEINTR 10004
@@ -134,7 +191,7 @@ int posix_socket_last_error(void)
 
 int posix_socket(int family, int type, int protocol)
 {
-	return succeed(socket(family, type | SOCK_CLOEXEC, protocol));
+	return succeed(socket_new(family, type, protocol, 0));
 }
 
 int posix_socket_close(int socket)
@@ -144,6 +201,11 @@ int posix_socket_close(int socket)
 
 int posix_socket_bind(int socket, const void *address, int address_length)
 {
+#ifdef __APPLE__
+	struct sockaddr_storage storage;
+
+	address = address_in(address, address_length, &storage);
+#endif
 	return succeed(bind(socket, address, (socklen_t)address_length));
 }
 
@@ -155,8 +217,13 @@ int posix_socket_connect(int socket, const void *address, int address_length)
 	transport_endpoint_winsock.c); as WSAEINPROGRESS it gave up at once,
 	and every system link join failed, a split screen game's join of its
 	own host included. */
-	int result = connect(socket, address, (socklen_t)address_length);
+	int result;
+#ifdef __APPLE__
+	struct sockaddr_storage storage;
 
+	address = address_in(address, address_length, &storage);
+#endif
+	result = connect(socket, address, (socklen_t)address_length);
 	if (result < 0 && errno == EINPROGRESS)
 	{
 		last_error = WSAEWOULDBLOCK;
@@ -173,7 +240,14 @@ int posix_socket_listen(int socket, int backlog)
 int posix_socket_accept(int socket, void *address, int *address_length)
 {
 	socklen_t length = address_length ? (socklen_t)*address_length : 0;
+#ifdef __APPLE__
+	int result = socket_settle(accept(socket, address, address_length ? &length : NULL), 0);
+
+	if (result >= 0)
+		address_out(address, (int)length);
+#else
 	int result = accept4(socket, address, address_length ? &length : NULL, SOCK_CLOEXEC);
+#endif
 
 	if (address_length)
 		*address_length = (int)length;
@@ -188,6 +262,11 @@ int posix_socket_send(int socket, const void *buffer, int length, int flags)
 int posix_socket_sendto(int socket, const void *buffer, int length, int flags,
 	const void *address, int address_length)
 {
+#ifdef __APPLE__
+	struct sockaddr_storage storage;
+
+	address = address_in(address, address_length, &storage);
+#endif
 	return succeed((int)sendto(socket, buffer, (size_t)length, flags | MSG_NOSIGNAL,
 		address, (socklen_t)address_length));
 }
@@ -212,6 +291,10 @@ int posix_socket_recvfrom(int socket, void *buffer, int length, int flags,
 	message.msg_iov = &vector;
 	message.msg_iovlen = 1;
 	result = (int)recvmsg(socket, &message, flags);
+#ifdef __APPLE__
+	if (result >= 0 && message.msg_name)
+		address_out(address, (int)message.msg_namelen);
+#endif
 	if (address_length)
 		*address_length = (int)message.msg_namelen;
 	/* a datagram larger than the buffer: both give its start, but Winsock
@@ -314,6 +397,10 @@ int posix_socket_getsockname(int socket, void *address, int *address_length)
 	socklen_t length = (socklen_t)*address_length;
 	int result = getsockname(socket, address, &length);
 
+#ifdef __APPLE__
+	if (result == 0)
+		address_out(address, (int)length);
+#endif
 	*address_length = (int)length;
 	return succeed(result);
 }
@@ -323,6 +410,10 @@ int posix_socket_getpeername(int socket, void *address, int *address_length)
 	socklen_t length = (socklen_t)*address_length;
 	int result = getpeername(socket, address, &length);
 
+#ifdef __APPLE__
+	if (result == 0)
+		address_out(address, (int)length);
+#endif
 	*address_length = (int)length;
 	return succeed(result);
 }
@@ -480,7 +571,7 @@ posix_ulong posix_local_ipv4_address(void)
 #endif
 	/* the address the default route leaves from: a UDP socket "connected"
 	to an internet address (a documentation one; nothing is sent) has it */
-	probe = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	probe = socket_new(AF_INET, SOCK_DGRAM, 0, 0);
 	if (probe >= 0)
 	{
 		memset(&route, 0, sizeof(route));
@@ -504,6 +595,11 @@ void posix_random_bytes(void *buffer, posix_ulong size)
 {
 	unsigned char *cursor = buffer;
 
+#ifdef __APPLE__
+	/* (it cannot fail) */
+	arc4random_buf(cursor, size);
+	size = 0;
+#else
 	while (size)
 	{
 		ssize_t count = getrandom(cursor, size, 0);
@@ -515,6 +611,7 @@ void posix_random_bytes(void *buffer, posix_ulong size)
 		cursor += count;
 		size -= (posix_ulong)count;
 	}
+#endif
 	if (size)
 	{
 		/* a kernel without getrandom, or a sandbox that refuses it */
@@ -567,6 +664,11 @@ int posix_command_line_argument(int index, char *buffer, posix_ulong size)
 	(void)buffer;
 	(void)size;
 	return 0;
+#elif defined(__APPLE__)
+	if (index < 0 || index >= *_NSGetArgc() || !size)
+		return 0;
+	snprintf(buffer, size, "%s", (*_NSGetArgv())[index]);
+	return 1;
 #else
 	char command_line[4096];
 	ssize_t length;
@@ -676,7 +778,8 @@ static int run_program(char *const arguments[])
 
 int posix_register_url_scheme(const char *scheme, const char *description)
 {
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__APPLE__)
+	/* (an app declares its links: none yet on macOS) */
 	(void)scheme;
 	(void)description;
 	return 0;
@@ -780,7 +883,7 @@ int posix_discord_connect(void)
 					continue;
 				/* (not blocking: a client that does not take connections is
 				passed over) */
-				socket_descriptor = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+				socket_descriptor = socket_new(AF_UNIX, SOCK_STREAM, 0, 1);
 				if (socket_descriptor < 0)
 					return -1;
 				if (connect(socket_descriptor, (struct sockaddr *)&address, sizeof(address)) == 0)
@@ -796,6 +899,12 @@ int posix_discord_connect(void)
 					{
 						return socket_descriptor;
 					}
+#elif defined(__APPLE__)
+					uid_t user;
+					gid_t group;
+
+					if (getpeereid(socket_descriptor, &user, &group) == 0 && user == getuid())
+						return socket_descriptor;
 #else
 					return socket_descriptor;
 #endif

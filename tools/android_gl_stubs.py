@@ -16,13 +16,23 @@ guest wrapper that widens such arguments and calls an import named
 hostgl_<function>, which the host resolves to the real entry point. Functions
 returning a string go through host_gl_get_string instead.
 
-Usage: android_gl_stubs.py gl.h gl32.h gl2ext.h output.c imports.list
+With --window (the macOS guest, port/macos/README.md), the guest's addresses
+are not the host's: every pointer argument is widened to the host address of
+the guest memory it points at (port/macos/guest/guest_window.h), but for the
+vertex and index data's, which the renderer always gives as offsets into
+the bound buffers (WebGL 2 has no other kind), and pass as they are.
+
+Usage: android_gl_stubs.py [--window] gl.h gl32.h gl2ext.h output.c imports.list
 """
 
 import re
 import sys
 
 INTEGER_REGISTER_COUNT = 8
+# (--window) pointer parameters that are offsets into the bound buffers: the
+# vertex attributes' and the draws' indices
+BUFFER_OFFSET_PARAMETERS = {"pointer", "indices", "indirect"}
+BUFFER_OFFSET_FUNCTIONS = ("glVertexAttrib", "glDraw")
 WIDE_TYPES = {"GLsizeiptr", "GLintptr", "GLint64", "GLuint64", "GLint64EXT", "GLuint64EXT"}
 FLOAT_TYPES = {"GLfloat", "GLclampf", "GLdouble", "GLclampd", "float", "double"}
 
@@ -55,7 +65,11 @@ def split_parameter(param: str):
 
 
 def main():
-    gl_header, gl32, gl2ext, output, imports = sys.argv[1:6]
+    arguments = sys.argv[1:]
+    window = bool(arguments) and arguments[0] == "--window"
+    if window:
+        arguments = arguments[1:]
+    gl_header, gl32, gl2ext, output, imports = arguments[:5]
     functions = android_functions(gl_header)
     protos = prototypes(gl32, gl2ext)
     out = [
@@ -63,6 +77,7 @@ def main():
         "#include <GLES3/gl32.h>",
         "#include <GLES2/gl2ext.h>",
         "#include <string.h>",
+        *(['#include "guest_window.h"'] if window else []),
         "",
         "void host_gl_get_string(unsigned int name, int index, char *buffer, unsigned int size);",
         "",
@@ -95,6 +110,26 @@ def main():
         if name == "glShaderSource":
             # an array of pointers: widen each to a host pointer
             import_names.append("hostgl_glShaderSource")
+            if window:
+                out += [
+                    "void hostgl_glShaderSource(GLuint shader, GLsizei count, unsigned long long strings, "
+                    "unsigned long long lengths);",
+                    "static void GL_APIENTRY guest_glShaderSource(GLuint shader, GLsizei count, "
+                    "const GLchar *const *strings, const GLint *lengths)",
+                    "{",
+                    "\tunsigned long long wide[16];",
+                    "\tGLsizei index;",
+                    "",
+                    "\tif (count > 16)",
+                    "\t\tcount = 16;",
+                    "\tfor (index = 0; index < count; index++)",
+                    "\t\twide[index] = guest_window_pointer(strings[index]);",
+                    "\thostgl_glShaderSource(shader, count, guest_window_pointer(wide), guest_window_pointer(lengths));",
+                    "}",
+                    "",
+                ]
+                table.append(name)
+                continue
             out += [
                 "void hostgl_glShaderSource(GLuint shader, GLsizei count, const unsigned long long *strings, "
                 "const GLint *lengths);",
@@ -132,7 +167,11 @@ def main():
             wide = base in WIDE_TYPES and not is_pointer
             on_stack = integer_index >= INTEGER_REGISTER_COUNT
             integer_index += 1
-            if is_pointer:
+            offset = name.startswith(BUFFER_OFFSET_FUNCTIONS) and pname in BUFFER_OFFSET_PARAMETERS
+            if is_pointer and window and not offset:
+                host_params.append("unsigned long long")
+                call_args.append(f"guest_window_pointer({arg})")
+            elif is_pointer:
                 if on_stack:
                     host_params.append("unsigned long long")
                     call_args.append(f"(unsigned long long)(unsigned int){arg}")

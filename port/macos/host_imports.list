@@ -1,0 +1,48 @@
+# Host functions the macOS guest imports besides the Android guest's
+# (port/android/host_imports.list): the desktop's SDL (its displays, windows,
+# dialogs and audio devices) and the app's folders. Declared in
+# port/macos/guest/guest_host_macos.h, defined in port/macos/host;
+# tools/macos_imports.py generates the stubs.
+host_sdl_ticks_ns
+host_sdl_delay_precise
+host_sdl_get_hint_boolean
+host_sdl_destroy_window
+host_sdl_window_flags
+host_sdl_window_size
+host_sdl_set_window_size
+host_sdl_set_window_fullscreen
+host_sdl_set_window_fullscreen_mode
+host_sdl_warp_mouse
+host_sdl_primary_display
+host_sdl_display_for_window
+host_sdl_display_usable_bounds
+host_sdl_desktop_display_mode
+host_sdl_current_display_mode
+host_sdl_closest_display_mode
+host_sdl_fullscreen_display_modes
+host_sdl_audio_devices
+host_sdl_audio_device_name
+host_sdl_pump_events
+host_sdl_push_event
+host_sdl_create_properties
+host_sdl_destroy_properties
+host_sdl_set_boolean_property
+host_sdl_set_number_property
+host_sdl_start_text_input
+host_sdl_stop_text_input
+host_sdl_text_input_active
+host_sdl_has_screen_keyboard
+host_sdl_show_message_box
+host_sdl_show_open_file_dialog
+host_sdl_dialog_result
+host_sdl_create_renderer
+host_sdl_destroy_renderer
+host_sdl_set_render_vsync
+host_sdl_set_render_draw_color
+host_sdl_render_clear
+host_sdl_set_render_scale
+host_sdl_render_debug_text
+host_sdl_render_fill_rect
+host_sdl_render_present
+host_sdl_base_path
+host_sdl_glob_directory
