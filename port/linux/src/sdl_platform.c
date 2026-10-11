@@ -781,10 +781,11 @@ BOOL platform_video_initialize(unsigned long width, unsigned long height)
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
-#ifdef HALO_WEB
+#if defined(HALO_WEB) || defined(HALO_MACOS)
 	/* an opaque canvas: the game keeps scratch values in destination alpha,
 	which a page would otherwise blend the picture by (black, or the page's
-	colours through it) */
+	colours through it); so would macOS's window server, which blends the
+	window's layer by its alpha (port/macos/host/host_cocoa.m) */
 	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
 #endif
 	if (config_boolean("debug.gl_debug"))

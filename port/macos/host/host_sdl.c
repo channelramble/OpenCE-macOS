@@ -179,11 +179,17 @@ int host_sdl_gl_set_attribute(int attribute, int value)
 	return SDL_GL_SetAttribute((SDL_GLAttr)attribute, value);
 }
 
+/* host_cocoa.m: the window's layers made opaque, ANGLE's among them */
+void host_cocoa_window_opaque(SDL_Window *window);
+
 uint32_t host_sdl_gl_create_context(uint32_t window)
 {
 	SDL_Window *object = handle_get(window, _handle_window);
+	SDL_GLContext context = object ? SDL_GL_CreateContext(object) : NULL;
 
-	return object ? handle_new(_handle_context, SDL_GL_CreateContext(object)) : 0;
+	if (context)
+		host_cocoa_window_opaque(object);
+	return handle_new(_handle_context, context);
 }
 
 int host_sdl_gl_make_current(uint32_t window, uint32_t context)

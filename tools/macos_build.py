@@ -72,7 +72,7 @@ GUEST_ABI_FLAGS_MACOS = [
     "-aarch64-enable-compress-jump-tables=false",
 ]
 
-HOST_FRAMEWORKS = ["Cocoa", "Foundation"]
+HOST_FRAMEWORKS = ["Cocoa", "Foundation", "QuartzCore"]
 
 
 def _quote(path: Any) -> str:
@@ -472,14 +472,16 @@ def generate_macos_build(n: Writer, sln: Any) -> None:
         f"-I{PORT_DIR}/host", f"-I{ANDROID_DIR}/include", f"-I{ANDROID_DIR}/host", f"-I{host_dir}",
         f"-I{SDL_DIR}/include", f"-I{gl_include}", f"-I{LINUX_DIR}/src", f"-I{TOML_DIR}",
     ])
-    host_sources = sorted((PORT_DIR / "host").glob("*.c")) + sorted((PORT_DIR / "host").glob("*.S")) + [
+    host_sources = sorted((PORT_DIR / "host").glob("*.c")) + sorted((PORT_DIR / "host").glob("*.S")) + \
+        sorted((PORT_DIR / "host").glob("*.m")) + [
         ANDROID_DIR / "host" / "host_watch_hash.c",
         LINUX_DIR / "src" / "posix_files.c", LINUX_DIR / "src" / "posix_net.c",
         TOML_DIR / "tomlc17.c",
     ]
     for source in host_sources:
         obj = host_obj_dir / (source.name + ".o")
-        n.build(outputs=obj, rule="macos_host_cc", inputs=source, variables={"cflags": host_cflags},
+        n.build(outputs=obj, rule="macos_host_cc", inputs=source,
+                variables={"cflags": host_cflags + (" -fobjc-arc" if source.suffix == ".m" else "")},
                 implicit=[host_syscall_numbers])
         host_objects.append(obj)
     miniupnpc_cflags = " ".join([host_cflags, f"-I{MINIUPNPC_DIR / 'include'}", f"-I{MINIUPNPC_DIR / 'src'}",
