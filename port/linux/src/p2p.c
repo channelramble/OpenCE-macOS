@@ -196,7 +196,10 @@ struct peer
 	unsigned long heard_time;
 	unsigned long endpoint_heard_time;
 	unsigned long sent_time;
+	/* milliseconds, from its pongs (smoothed), once one has come
+	(p2p_peer_round_trip) */
 	unsigned long round_trip;
+	int round_trip_known;
 };
 
 /* a UDP stand-in for one port of a peer */
@@ -1775,6 +1778,42 @@ int p2p_peer_address(const unsigned char *peer_identifier, unsigned long *addres
 	return result;
 }
 
+int p2p_peer_round_trip(const unsigned char *peer_identifier)
+{
+	struct peer *peer;
+	int result = -1;
+
+	if (!p2p.running)
+		return -1;
+	pthread_mutex_lock(&p2p_lock);
+	peer = find_peer(peer_identifier);
+	if (peer && peer->connected && peer->round_trip_known)
+		result = (int)peer->round_trip;
+	pthread_mutex_unlock(&p2p_lock);
+	return result;
+}
+
+void p2p_release_host(const unsigned char *host_identifier)
+{
+	struct peer *peer;
+
+	if (!p2p.running)
+		return;
+	pthread_mutex_lock(&p2p_lock);
+	/* (a join of it still under way stops first: drop_peer would ask again) */
+	if ((p2p.joining || p2p.join_requested) && !memcmp(p2p.join_host, host_identifier, P2P_IDENTIFIER_SIZE))
+	{
+		if (p2p.joining)
+			p2p_signal_stop_joining();
+		p2p.joining = 0;
+		p2p.join_requested = 0;
+	}
+	peer = find_peer(host_identifier);
+	if (peer && peer->is_host)
+		drop_peer(peer, "let go of (the server browser reached it for its ping)");
+	pthread_mutex_unlock(&p2p_lock);
+}
+
 /* ---------- the game's ports: all that peers may reach */
 
 void p2p_socket_port(int socket, int stream, int listening, unsigned short port)
@@ -2280,9 +2319,17 @@ static void tunnel_received(const unsigned char *packet, int size, const struct 
 		{
 			/* (4 bytes of the clock, as the ping carries) */
 			unsigned int sent;
+			unsigned long round_trip;
 
 			memcpy(&sent, inner + 1, 4);
-			peer->round_trip = (unsigned int)p2p_now() - sent;
+			round_trip = (unsigned int)p2p_now() - sent;
+			/* (a pong of a ping long gone, or not of ours: no time at all) */
+			if (round_trip > PEER_TIMEOUT)
+				break;
+			/* (a quarter of each new one: one late packet does not make the
+			server browser's ping jump) */
+			peer->round_trip = peer->round_trip_known ? (3 * peer->round_trip + round_trip) / 4 : round_trip;
+			peer->round_trip_known = 1;
 		}
 		break;
 	case _packet_datagram:

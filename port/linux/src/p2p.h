@@ -31,6 +31,14 @@ const unsigned char *p2p_identifier(void);
 /* the address the game reaches the machine with this identifier at, if it
 is an internet play peer (reached yet or not) */
 int p2p_peer_address(const unsigned char *identifier, unsigned long *address);
+/* the round trip to that peer through the tunnel, in milliseconds (the
+tunnel's pings, smoothed): -1 if it is not reached, or not measured yet. The
+server browser's ping */
+int p2p_peer_round_trip(const unsigned char *identifier);
+/* lets go of the host with that identifier, reached by its invite but not
+joined (the server browser reaches a game's host to measure its ping): the
+session ends as when the game quits, and a join of it under way stops */
+void p2p_release_host(const unsigned char *identifier);
 
 /* a destination the game sends to or connects to (stream: a TCP socket;
 socket: the game's UDP socket connected to it, else -1): 1 if it is a peer's

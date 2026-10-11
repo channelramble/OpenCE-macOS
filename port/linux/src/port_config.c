@@ -363,6 +363,39 @@ static const struct config_setting config_settings[] =
 		"The server browser: public games are listed through the signalling\n"
 		"brokers, and Join Game > Server Browser shows them. False lists no\n"
 		"game of this machine's and shows none." },
+	{ "network.browser_ping", _config_boolean, "true", "HALO_NET_BROWSER_PING", _environment_value, _platform_all,
+		"The server browser's ping: a game the player selects has its host\n"
+		"reached, as joining it would (its host then learns this machine's\n"
+		"address), and its ping is the round trip to it; a few hosts stay\n"
+		"reached until the browser closes. False shows no ping, and reaches no\n"
+		"host before JOIN GAME." },
+	{ "network.browser_show_empty", _config_boolean, "true", "HALO_NET_BROWSER_SHOW_EMPTY", _environment_value,
+		_platform_all,
+		"Join Game's FILTERS: SHOW EMPTY SERVERS, the games without players." },
+	{ "network.browser_show_full", _config_boolean, "true", "HALO_NET_BROWSER_SHOW_FULL", _environment_value,
+		_platform_all,
+		"FILTERS: SHOW FULL SERVERS, the games with no room for another player." },
+	{ "network.browser_ping_limit", _config_integer, "0", "HALO_NET_BROWSER_PING_LIMIT", _environment_value,
+		_platform_all,
+		"FILTERS: PING, the games whose ping is under this many milliseconds\n"
+		"(50, 100, 150, 200 or 300; 0: any). A game whose ping is not known\n"
+		"shows." },
+	{ "network.browser_game_type", _config_string, "\"any\"", "HALO_NET_BROWSER_GAME_TYPE", _environment_value,
+		_platform_all,
+		"FILTERS: GAME TYPE, \"any\", \"ctf\", \"slayer\", \"oddball\", \"king\" or\n"
+		"\"race\"." },
+	{ "network.browser_teamplay", _config_string, "\"any\"", "HALO_NET_BROWSER_TEAMPLAY", _environment_value,
+		_platform_all,
+		"FILTERS: TEAMPLAY OPTIONS, \"any\", \"free_for_all\" or \"teams\"." },
+	{ "network.browser_show_missing_maps", _config_boolean, "true", "HALO_NET_BROWSER_SHOW_MISSING_MAPS",
+		_environment_value, _platform_all,
+		"FILTERS: SHOW MISSING MAPS, the games on Custom Edition maps that this\n"
+		"machine has not got." },
+	{ "network.browser_sort", _config_string, "\"\"", "HALO_NET_BROWSER_SORT", _environment_value, _platform_all,
+		"The column Join Game's list is sorted by (choosing a column's title\n"
+		"sets it): \"name\", \"map\", \"game\", \"players\", \"ping\" or\n"
+		"\"password\", the least first, or with \" descending\" after it the most\n"
+		"first (\"players descending\"). Empty: as found, the most players first." },
 	{ "network.host_public", _config_boolean, "true", "HALO_NET_HOST_PUBLIC", _environment_value, _platform_all,
 		"Whether a new game of Create Game > Internet starts as PUBLIC (listed\n"
 		"in everyone's server browser: anyone can see and join it) or, false,\n"

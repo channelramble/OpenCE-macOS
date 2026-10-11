@@ -380,6 +380,14 @@ the setting for one start of the game. It has priority over the file.
 | `network.tunnel_port` | `0` | `HALO_NET_TUNNEL_PORT` | The UDP port for internet play. `0`: the game selects a port. Refer to "Internet play". |
 | `network.allow_upnp` | `true` | `HALO_NET_ALLOW_UPNP` | `true`: internet play can ask the router to forward its port (UPnP). `false`: the game does not ask. Refer to "Internet play". |
 | `network.public_lobby` | `true` | `HALO_NET_PUBLIC_LOBBY` | `true`: the server browser. Public games are listed, and Join Game > Server Browser shows them. `false`: no games are listed or shown. Refer to "Server browser". |
+| `network.browser_ping` | `true` | `HALO_NET_BROWSER_PING` | `true`: the server browser reaches the host of a game that the player selects, as joining does, and shows its ping. Its host then knows the address of this machine. `false`: no ping, and no host is reached before JOIN GAME. Refer to "Server browser". |
+| `network.browser_show_empty` | `true` | `HALO_NET_BROWSER_SHOW_EMPTY` | FILTERS in Join Game: SHOW EMPTY SERVERS. `false`: games without players are not shown. |
+| `network.browser_show_full` | `true` | `HALO_NET_BROWSER_SHOW_FULL` | FILTERS: SHOW FULL SERVERS. `false`: games without room for another player are not shown. |
+| `network.browser_ping_limit` | `0` | `HALO_NET_BROWSER_PING_LIMIT` | FILTERS: PING. `50`, `100`, `150`, `200` or `300`: only games whose ping is less, and those whose ping is not known. `0`: any ping. |
+| `network.browser_game_type` | `"any"` | `HALO_NET_BROWSER_GAME_TYPE` | FILTERS: GAME TYPE. `"ctf"`, `"slayer"`, `"oddball"`, `"king"` or `"race"`: only games of that type. `"any"`: all games. |
+| `network.browser_teamplay` | `"any"` | `HALO_NET_BROWSER_TEAMPLAY` | FILTERS: TEAMPLAY OPTIONS. `"free_for_all"` or `"teams"`: only games of that kind. `"any"`: all games. |
+| `network.browser_show_missing_maps` | `true` | `HALO_NET_BROWSER_SHOW_MISSING_MAPS` | FILTERS: SHOW MISSING MAPS. `false`: games on Custom Edition maps that this machine does not have are not shown. |
+| `network.browser_sort` | `""` | `HALO_NET_BROWSER_SORT` | The column that sorts the list in Join Game: `"name"`, `"map"`, `"game"`, `"players"`, `"ping"` or `"password"`, the lowest first, or with ` descending` after it, the highest first (`"players descending"`). A click on the title of a column sets it. `""`: the order in which the games were found (the most players first). |
 | `network.host_public` | `true` | `HALO_NET_HOST_PUBLIC` | `true`: a new game of Create Game > Internet starts as PUBLIC. `false`: it starts as PRIVATE. LISTING in Server Setup changes it for each game. Refer to "Server browser". |
 | `network.coop_friendly_fire` | `"on"` | `HALO_NET_COOP_FRIENDLY_FIRE` | Whether the players of an online co-op game hurt each other: `"off"`, `"on"`, `"shields_only"` or `"explosives_only"`. FRIENDLY FIRE in co-op's Server Setup > Co-op Options writes its choice here. Their AI allies they always can, as in the campaign. |
 | `network.coop_player_collisions` | `true` | `HALO_NET_COOP_PLAYER_COLLISIONS` | Whether the players of an online co-op game bump into each other. `false`: they walk through each other, so that one cannot block a doorway or stand on another; they still bump into the AI's characters. PLAYER COLLISIONS in co-op's Server Setup > Co-op Options writes its choice here. |
@@ -711,11 +719,40 @@ GAME joins only with the correct password. The invite link of the game joins
 it without the password. The host keeps the password only while the game
 runs.
 
-In the Server Browser, select a game to join it. The game joins the invite
-of the game, as for a link. When it reaches the host, it opens the lobby.
-If it cannot reach the host in 30 seconds, it marks the game FAILED. A game
-that is full or starting shows CLOSED. REFRESH asks the hosts for their
-listings again.
+Join Game (Server Browser, LAN and Direct Link) shows its games as the PC
+version's browser does:
+
+- Click the title of a column to sort the games by it. Click it again for
+  the other order. An arrow shows the column and the order, and the game
+  keeps it (`network.browser_sort`).
+- FILTERS hides games: empty games, full games, games with a higher ping,
+  games of another type, free-for-all or team games, and games on Custom
+  Edition maps that this machine does not have (`network.browser_*`). Over
+  the columns, PLAYERS and SERVERS count the games shown, and PAGE shows
+  which page of the list the rows show.
+- The spinner over the list changes between Internet (the server browser)
+  and LAN.
+- Click a game to select it. The two lines below the list show its players
+  and its rules. Double-click the game, or click JOIN GAME, to join it.
+  With a controller or the keyboard, the selection follows the focus, and A
+  (Enter) joins.
+
+In the Server Browser, a short time after you select a game, the game
+reaches its host, as when you join it. The Ping column then shows the
+round trip to the host in milliseconds. While the game reaches the host,
+Ping shows `...` and the line below the list shows Getting Server Info....
+Up to 4 hosts stay reached until the browser closes, and the browser keeps
+the pings that it measured. The host of a game that you select learns your
+address, as when you join. `network.browser_ping = false` stops this: the
+browser then shows no ping. A listing does not hold the names of the
+players, so the line of players shows how many players and machines a game
+has.
+
+To join a game, the game joins the invite of the game, as for a link. When
+it reaches the host, it opens the lobby. If it cannot reach the host in 30
+seconds, it marks the game FAILED. A game that is full or starting shows
+FULL, and a game under way whose ping is not known shows LIVE. REFRESH asks
+the hosts for their listings again, and measures the pings again.
 
 How it operates (`src/p2p_lobby.c`):
 
