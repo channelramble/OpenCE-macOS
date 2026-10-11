@@ -49,6 +49,9 @@ int host_errno(void);
 void host_fatal(const char *format, ...) __attribute__((format(printf, 1, 2), noreturn));
 /* the data folder (config.toml, maps/, saves), without a trailing slash */
 const char *host_data_root(void);
+/* AppKit's restoration of the windows, off, and its question after a crash
+(host_cocoa.m): before SDL starts AppKit */
+void host_cocoa_no_window_restoration(void);
 
 /* ---------- guest memory (host_memory.c)
 

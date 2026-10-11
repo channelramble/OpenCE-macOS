@@ -371,6 +371,8 @@ int main(int argc, char *argv[])
 	}
 	write_brokers();
 
+	/* (no window restored, nor asked about after a crash: host_cocoa.m) */
+	host_cocoa_no_window_restoration();
 	/* OpenGL ES through the app's ANGLE (SDL's EGL), on Metal rather than on
 	ANGLE's other backend, macOS's OpenGL (which Apple no longer develops) */
 	setenv("ANGLE_DEFAULT_PLATFORM", "metal", 0);

@@ -2,7 +2,8 @@
 HOST_COCOA.M
 
 The window's layers (host_sdl.c calls it once the game's OpenGL ES context
-is made).
+is made), and the windows' restoration, off (host_main.c, before SDL starts
+AppKit).
 
 ANGLE draws the game into a CAMetalLayer of its own, which it adds to the
 layer of the window's view (SDL hands it that layer for the EGL surface).
@@ -57,4 +58,19 @@ void host_cocoa_window_opaque(SDL_Window *window)
 	if (!layers_make_opaque(view.layer, 0))
 		host_logf(HOST_LOG_WARN, "window layer: no Metal layer under the window's view");
 	view.layer.opaque = YES;
+}
+
+/* AppKit's restoration of the app's windows at its start, off: the game
+makes its own window, and after a crash AppKit would first ask whether to
+reopen the windows, in an alert that holds the start until it is answered
+(and that a full screen game's window can hide) */
+void host_cocoa_no_window_restoration(void)
+{
+	@autoreleasepool
+	{
+		[[NSUserDefaults standardUserDefaults] registerDefaults:@{
+			@"ApplePersistenceIgnoreState": @YES,
+			@"NSQuitAlwaysKeepsWindows": @NO,
+		}];
+	}
 }
