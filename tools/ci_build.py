@@ -18,9 +18,11 @@ passed on as --compiler-launcher. A build of the main branch gets the run's
 number (HALO_BUILD_NUMBER), which its release is named after and the
 self-updater compares (and the web site's version.json names).
 
-The macOS build (port/macos/README.md) is the app, Halo.app, packed with
-ditto into Halo.zip: the workflow's artifacts keep neither the executable's
-permissions nor anything else of a bundle's.
+The macOS build (port/macos/README.md) is the app's disk image, Halo.dmg
+(the app, Halo.app, beside a link to /Applications): the workflow's
+artifacts keep neither the executable's permissions nor anything else of a
+bundle's, which a disk image keeps whole. The app carries its licences
+(Licenses.txt, in it).
 
 The web build (port/web/README.md) needs Emscripten (emcc on the PATH, as
 emsdk_env.sh puts it); dist/halo-web-<config>/ is the whole site, which a
@@ -91,6 +93,15 @@ def main() -> int:
         shutil.copytree(ROOT / "build/web/site", dist)
         print(f"build/web/site -> {dist.relative_to(ROOT)}", flush=True)
         return 0
+    if args.platform == "macos":
+        run(["ninja", "macos_dmg"])
+        dist = ROOT / "dist" / f"halo-macos-{args.config}"
+        if dist.exists():
+            shutil.rmtree(dist)
+        dist.mkdir(parents=True)
+        shutil.copy2(ROOT / "build/macos/Halo.dmg", dist)
+        print(f"build/macos/Halo.dmg -> {dist.relative_to(ROOT)}", flush=True)
+        return 0
     if args.platform == "android":
         # the native part, then the app around it (Gradle's variant of the
         # same name: release is signed with the debug key, not debuggable)
@@ -107,10 +118,6 @@ def main() -> int:
     if dist.exists():
         shutil.rmtree(dist)
     dist.mkdir(parents=True)
-    if args.platform == "macos":
-        # (the app with its signature, its executable's permissions and its
-        # libraries, which only an archive of macOS's own keeps whole)
-        run(["ditto", "-c", "-k", "--keepParent", ROOT / "build/macos/Halo.app", dist / "Halo.zip"])
     for output in outputs:
         shutil.copy2(ROOT / output, dist)
         print(f"{output} -> {dist.relative_to(ROOT)}", flush=True)
@@ -151,8 +158,8 @@ def main() -> int:
     # menus' bitmaps), whose ISC license asks copies to carry its notice
     shutil.copy2(ROOT / "port/assets/icons/lucide/LICENSE", dist / "lucide-LICENSE.txt")
     # internet play's MQTT brokers, a file beside the game (network.brokers_file;
-    # Android's APK and the macOS app have their own copies)
-    if args.platform not in ("android", "macos"):
+    # Android's APK has its own copy)
+    if args.platform != "android":
         shutil.copy2(ROOT / "port/assets/network/brokers.txt", dist / "brokers.txt")
     return 0
 

@@ -264,8 +264,10 @@ jobs:
     # The runner image (Apple silicon) has Xcode's tools, Python and CMake;
     # Homebrew brings LLVM's linker and archiver (and the clang the guest's
     # profile-guided optimisation needs), ninja and ccache. The test starts
-    # the release build without game data or a window (the null renderer):
-    # the guest image loads into its window and runs until it quits.
+    # the debug build without game data or a window (the null renderer):
+    # the guest image loads into its window and runs until it quits. (The
+    # release build, which checks no assertions, waits on its error screen
+    # instead, where no window takes debug.exit_after.)
     runs-on: macos-15
     timeout-minutes: 40
     steps:
@@ -289,15 +291,15 @@ jobs:
       - name: Debug
         run: python3 tools/ci_build.py macos debug
 
-      - name: Release
-        run: python3 tools/ci_build.py macos release
-
       - name: Test
         run: |
           mkdir -p "$RUNNER_TEMP/halo-data"
           HALO_DATA_ROOT="$RUNNER_TEMP/halo-data" HALO_NULL_RENDERER=1 HALO_HIDDEN_WINDOW=1 HALO_EXIT_AFTER=5 \
-            HALO_NET_ONLINE=0 build/macos/Halo.app/Contents/MacOS/Halo
+            HALO_NET_ONLINE=0 perl -e 'alarm shift; exec @ARGV' 120 build/macos/Halo.app/Contents/MacOS/Halo
           cat "$RUNNER_TEMP/halo-data/halo.log"
+
+      - name: Release
+        run: python3 tools/ci_build.py macos release
 
       - name: Compile cache
         run: ccache --show-stats

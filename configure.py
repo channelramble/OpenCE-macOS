@@ -97,6 +97,13 @@ parser.add_argument(
     "the one configure.py downloads)",
 )
 parser.add_argument(
+    "--macos-sign",
+    type=str,
+    metavar="IDENTITY",
+    help="sign the macOS app with this Developer ID Application certificate (its name in the keychain), with "
+    "the hardened runtime, so that it can be notarized (default: an ad hoc signature, for this Mac)",
+)
+parser.add_argument(
     "--web-emcc",
     type=str,
     help="Emscripten's emcc for `ninja web` (default: emcc on the PATH, then EMSDK's or ~/emsdk's)",
@@ -122,6 +129,7 @@ sln = SimpleNamespace(
     android_guest_cc=args.android_guest_cc,
     macos_guest_cc=args.macos_guest_cc,
     macos_angle=args.macos_angle,
+    macos_sign=args.macos_sign,
     web_emcc=args.web_emcc,
 )
 

@@ -13,7 +13,9 @@ is rewritten to address it (tools/macos_sfi.py). This graph builds
 - the host, build/macos/host/halo: an arm64 executable, the loader and the
   services the guest calls, over SDL3 and OpenGL ES (ANGLE, on Metal);
 - SDL3 itself, with CMake;
-- the app, build/macos/Halo.app, holding the host, SDL3, ANGLE and the image.
+- the app, build/macos/Halo.app, holding the host, SDL3, ANGLE and the image,
+  and (``ninja macos_dmg``) its disk image, build/macos/Halo.dmg, to drag it
+  to /Applications from.
 
 configure.py downloads musl and SDL's source as the Android build does, and
 ANGLE's libraries (a build of Kivy's angle-builder, checked against its
@@ -519,18 +521,30 @@ def generate_macos_build(n: Writer, sln: Any) -> None:
     )
     n.build(outputs=icon, rule="macos_icon", inputs=Path("port/assets/icon/opence-icon.png"),
             implicit=[Path("tools/macos_app.py")])
+    # signed for this machine alone, or with --macos-sign's Developer ID
+    # (port/macos/README.md, "Sign and notarize")
+    signing = getattr(sln, "macos_sign", None) or ""
+    sign_option = f' --sign "{signing}"' if signing else ""
     n.rule(
         name="macos_bundle",
         command=(f"{python} tools/macos_app.py bundle --app {app} --executable {host_executable} "
-                 f"--image {image} --sdl {libsdl} --angle {angle} --icon {icon} "
-                 f"--info {PORT_DIR / 'Info.plist'} --brokers port/assets/network/brokers.txt "
-                 f"--minimum {MINIMUM_MACOS} --stamp $out"),
+                 f"--image {image} --sdl {libsdl} --angle {angle} --musl {MUSL_DIR} --icon {icon} "
+                 f"--info {PORT_DIR / 'Info.plist'} --entitlements {PORT_DIR / 'Halo.entitlements'} "
+                 f"--brokers port/assets/network/brokers.txt --minimum {MINIMUM_MACOS}{sign_option} --stamp $out"),
         description=f"MACOS APP {app}",
     )
     stamp = BUILD / "Halo.app.stamp"
     n.build(outputs=stamp, rule="macos_bundle",
-            inputs=[host_executable, image, libsdl, icon, PORT_DIR / "Info.plist",
+            inputs=[host_executable, image, libsdl, icon, PORT_DIR / "Info.plist", PORT_DIR / "Halo.entitlements",
                     Path("port/assets/network/brokers.txt")],
-            implicit=[Path("tools/macos_app.py")])
+            implicit=[Path("tools/macos_app.py"), Path("port/web/licenses.py")])
     n.build(outputs="macos", rule="phony", inputs=[stamp])
+    dmg = BUILD / "Halo.dmg"
+    n.rule(
+        name="macos_dmg",
+        command=f"{python} tools/macos_app.py dmg --app {app} --output $out{sign_option}",
+        description="MACOS DMG $out",
+    )
+    n.build(outputs=dmg, rule="macos_dmg", inputs=[stamp], implicit=[Path("tools/macos_app.py")])
+    n.build(outputs="macos_dmg", rule="phony", inputs=[dmg])
     n.newline()

@@ -25,8 +25,9 @@ builds of the latest release:
 | macOS (Apple silicon) | [halo-macos-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-macos-release.zip) | [halo-macos-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-macos-debug.zip) |
 | Web | [halocombatevolved.com](https://halocombatevolved.com/) (or [halo-web-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-web-release.zip) for your own server) | [halo-web-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-web-debug.zip) |
 
-The macOS download holds `Halo.zip`, the app. It is not notarized: refer to
-[port/macos/README.md](port/macos/README.md) to open it the first time.
+The macOS download holds `Halo.dmg`: open it and drag Halo to Applications.
+It is not notarized: refer to [port/macos/README.md](port/macos/README.md)
+to open it the first time.
 
 Use the release build to play. The debug build stops at the first failed
 assertion and writes it to the log. Use the debug build to find and report
@@ -111,7 +112,7 @@ To build the game:
 | --- | --- |
 | `ninja linux` | `build/linux/halo` |
 | `ninja windows` (on Windows) | `build/windows/halo.exe` and `SDL3.dll` |
-| `ninja macos` (on macOS) | `build/macos/Halo.app` |
+| `ninja macos` (on macOS) | `build/macos/Halo.app` (`ninja macos_dmg`: `build/macos/Halo.dmg`) |
 | `ninja android_apk` | `port/android/app/build/outputs/apk/debug/app-debug.apk` |
 | `ninja web` | `build/web/site/`, the web site (`python tools/web_serve.py` serves it) |
 

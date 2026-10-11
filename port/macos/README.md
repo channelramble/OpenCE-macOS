@@ -49,9 +49,29 @@ Macs cannot run the game (refer to "How the port operates").
 open `build/macos/Halo.app` in the Finder, or enter
 `open build/macos/Halo.app`. You can move the app to `/Applications`.
 
+`ninja macos_dmg` also makes `build/macos/Halo.dmg`, a disk image with the
+app beside a link to `/Applications`: the download for other Macs. The app
+carries the notices of the code and fonts in it (`Licenses.txt`, in its
+`Resources`).
+
+### Sign and notarize
+
 The app is signed for the computer that built it (an ad hoc signature).
-Another Mac starts it only after the person allows it in System Settings
-> Privacy & Security, because it is not notarized.
+Another Mac opens it only after the person allows it: open the app, then
+System Settings > Privacy & Security > "Open Anyway". A notarized app opens
+without this. To notarize it, you need a membership of the Apple Developer
+Program and its Developer ID Application certificate in your keychain:
+
+1. Enter `python3 configure.py --release --macos-sign "Developer ID Application: <name> (<team>)"`.
+   The app is then signed with the hardened runtime and the entitlements in
+   `Halo.entitlements` (the guest's code needs `allow-jit`, voice chat the
+   microphone).
+2. Enter `ninja macos_dmg`.
+3. Store the notary service's credentials once:
+   `xcrun notarytool store-credentials halo --apple-id <Apple ID> --team-id <team>`
+   (it asks for an app-specific password).
+4. Enter `python3 tools/macos_app.py notarize --dmg build/macos/Halo.dmg --keychain-profile halo`.
+   It waits for Apple's answer, then staples the ticket to the disk image.
 
 ## Game data
 

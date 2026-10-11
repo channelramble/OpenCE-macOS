@@ -41,7 +41,7 @@ ninja android                  # the Android guest image and native libraries
 ninja android_apk              # the APK (Gradle)
 ninja web                      # build/web/site (Emscripten: port/web/README.md)
 ninja windows                  # on Windows only
-ninja macos                    # build/macos/Halo.app, on macOS only
+ninja macos                    # build/macos/Halo.app, on macOS only (ninja macos_dmg: Halo.dmg)
 python tools/ci_build.py linux release   # what CI builds
 ```
 
