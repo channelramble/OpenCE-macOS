@@ -4,6 +4,7 @@
 
     python tools/ci_build.py linux debug
     python tools/ci_build.py android release
+    python tools/ci_build.py macos release
     python tools/ci_build.py linux profile
     python tools/ci_build.py web release
 
@@ -16,6 +17,10 @@ configure.py --profile, so that the profiling build is built too. CI_COMPILER_LA
 passed on as --compiler-launcher. A build of the main branch gets the run's
 number (HALO_BUILD_NUMBER), which its release is named after and the
 self-updater compares (and the web site's version.json names).
+
+The macOS build (port/macos/README.md) is the app, Halo.app, packed with
+ditto into Halo.zip: the workflow's artifacts keep neither the executable's
+permissions nor anything else of a bundle's.
 
 The web build (port/web/README.md) needs Emscripten (emcc on the PATH, as
 emsdk_env.sh puts it); dist/halo-web-<config>/ is the whole site, which a
@@ -38,6 +43,7 @@ OUTPUTS = {
     # zlib license, as the release carries the other libraries')
     "linux": ["build/linux/halo", "build/linux/libSDL3.so.0", "build/linux/SDL3-LICENSE.txt"],
     "windows": ["build/windows/halo.exe", "build/windows/SDL3.dll"],
+    "macos": [],  # the app, below
     "android": [],  # the APK, below
     "web": [],  # the site, below
 }
@@ -101,6 +107,10 @@ def main() -> int:
     if dist.exists():
         shutil.rmtree(dist)
     dist.mkdir(parents=True)
+    if args.platform == "macos":
+        # (the app with its signature, its executable's permissions and its
+        # libraries, which only an archive of macOS's own keeps whole)
+        run(["ditto", "-c", "-k", "--keepParent", ROOT / "build/macos/Halo.app", dist / "Halo.zip"])
     for output in outputs:
         shutil.copy2(ROOT / output, dist)
         print(f"{output} -> {dist.relative_to(ROOT)}", flush=True)
@@ -141,8 +151,8 @@ def main() -> int:
     # menus' bitmaps), whose ISC license asks copies to carry its notice
     shutil.copy2(ROOT / "port/assets/icons/lucide/LICENSE", dist / "lucide-LICENSE.txt")
     # internet play's MQTT brokers, a file beside the game (network.brokers_file;
-    # Android's APK has its own copy)
-    if args.platform != "android":
+    # Android's APK and the macOS app have their own copies)
+    if args.platform not in ("android", "macos"):
         shutil.copy2(ROOT / "port/assets/network/brokers.txt", dist / "brokers.txt")
     return 0
 

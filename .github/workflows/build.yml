@@ -91,7 +91,7 @@ jobs:
 
       - name: Test
         run: |
-          python -m pytest -q tools/test_linux_port.py tools/test_host_watch_hash.py tools/test_touch_menu.py tools/harness tools/test_profile.py
+          python -m pytest -q tools/test_linux_port.py tools/test_host_watch_hash.py tools/test_touch_menu.py tools/harness tools/test_profile.py tools/test_macos_tools.py
           python tools/test_light_storage.py
 
       - name: Compile cache
@@ -260,6 +260,60 @@ jobs:
           path: dist/halo-windows-release-symbols
           retention-days: 3
 
+  macos:
+    # The runner image (Apple silicon) has Xcode's tools, Python and CMake;
+    # Homebrew brings LLVM's linker and archiver (and the clang the guest's
+    # profile-guided optimisation needs), ninja and ccache. The test starts
+    # the release build without game data or a window (the null renderer):
+    # the guest image loads into its window and runs until it quits.
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: Install the toolchain
+        run: brew install llvm lld ninja ccache
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-macos-${{ github.sha }}
+          restore-keys: ccache-macos-
+
+      # musl, SDL and ANGLE, which configure.py fetches
+      - uses: actions/cache@v4
+        with:
+          path: build/macos/third_party
+          key: macos-third-party-${{ hashFiles('tools/macos_build.py', 'tools/android_build.py') }}
+
+      - name: Debug
+        run: python3 tools/ci_build.py macos debug
+
+      - name: Release
+        run: python3 tools/ci_build.py macos release
+
+      - name: Test
+        run: |
+          mkdir -p "$RUNNER_TEMP/halo-data"
+          HALO_DATA_ROOT="$RUNNER_TEMP/halo-data" HALO_NULL_RENDERER=1 HALO_HIDDEN_WINDOW=1 HALO_EXIT_AFTER=5 \
+            HALO_NET_ONLINE=0 build/macos/Halo.app/Contents/MacOS/Halo
+          cat "$RUNNER_TEMP/halo-data/halo.log"
+
+      - name: Compile cache
+        run: ccache --show-stats
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halo-macos-debug
+          path: dist/halo-macos-debug
+          retention-days: 3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: halo-macos-release
+          path: dist/halo-macos-release
+          retention-days: 3
+
   web:
     # Emscripten (emsdk, the version below, cached) builds the web port's
     # site (port/web/README.md); the tests check its graph, the page's
@@ -338,12 +392,12 @@ jobs:
           retention-days: 3
 
   release:
-    # The eight builds (and the Windows builds' PDBs) as a release, tagged
+    # The ten builds (and the Windows builds' PDBs) as a release, tagged
     # build-<run number> and marked latest
     # (every file keeps its name from release to release, for the README's
     # latest/download links); then all but the newest five build-* releases
     # go, tags and all. Only for main, and only when every platform built.
-    needs: [linux, android, windows, web]
+    needs: [linux, android, windows, macos, web]
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -461,7 +515,7 @@ jobs:
     # without it): green when every platform built, red when one did not,
     # with each platform's result, this run's release (main only), and links
     # to the latest release's builds and the site.
-    needs: [linux, android, windows, web, release, pages]
+    needs: [linux, android, windows, macos, web, release, pages]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -472,6 +526,7 @@ jobs:
           LINUX: ${{ needs.linux.result }}
           ANDROID: ${{ needs.android.result }}
           WINDOWS: ${{ needs.windows.result }}
+          MACOS: ${{ needs.macos.result }}
           WEB: ${{ needs.web.result }}
           PAGES: ${{ needs.pages.result }}
           SITE_URL: https://halocombatevolved.com/
@@ -497,13 +552,14 @@ jobs:
               *) echo "➖ Skipped" ;;
             esac
           }
-          if [ "$LINUX" = success ] && [ "$ANDROID" = success ] && [ "$WINDOWS" = success ] && [ "$WEB" = success ]; then
+          if [ "$LINUX" = success ] && [ "$ANDROID" = success ] && [ "$WINDOWS" = success ] && [ "$MACOS" = success ] &&
+            [ "$WEB" = success ]; then
             title="Build succeeded"; color=5763719
           else
             title="Build failed"; color=15548997
           fi
           latest="$SERVER/$REPOSITORY/releases/latest"
-          downloads="[Linux]($latest/download/halo-linux-release.zip) · [Windows]($latest/download/halo-windows-release.zip) · [Android]($latest/download/halo-android-release.zip) · [Web]($SITE_URL) ([all builds]($latest))"
+          downloads="[Linux]($latest/download/halo-linux-release.zip) · [Windows]($latest/download/halo-windows-release.zip) · [macOS]($latest/download/halo-macos-release.zip) · [Android]($latest/download/halo-android-release.zip) · [Web]($SITE_URL) ([all builds]($latest))"
           if [ -n "$RELEASE_TAG" ]; then
             release="[$RELEASE_TAG]($SERVER/$REPOSITORY/releases/tag/$RELEASE_TAG)"
             if [ "$PAGES" = success ]; then
@@ -518,7 +574,7 @@ jobs:
             --arg description "[\`${SHA:0:7}\`]($COMMIT_URL) $subject — $ACTOR ($BRANCH)" \
             --arg release "$release" --arg downloads "$downloads" \
             --arg linux "$(status "$LINUX")" --arg windows "$(status "$WINDOWS")" --arg android "$(status "$ANDROID")" \
-            --arg web "$(status "$WEB")" \
+            --arg macos "$(status "$MACOS")" --arg web "$(status "$WEB")" \
             --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{embeds: [{
               title: $title, url: $url, color: $color, description: $description, timestamp: $timestamp,
@@ -526,6 +582,7 @@ jobs:
                 {name: "Linux", value: $linux, inline: true},
                 {name: "Windows", value: $windows, inline: true},
                 {name: "Android", value: $android, inline: true},
+                {name: "macOS", value: $macos, inline: true},
                 {name: "Web", value: $web, inline: true},
                 {name: "Release", value: $release},
                 {name: "Latest release builds", value: $downloads}
